@@ -33,6 +33,7 @@ public static class DragonCaveV2Builder
     static Material wallMat, groundMat, flameMat, woodMat, goldMat, dayMat, dustMat, eggMat;
     static AudioClip torchClip, snoreClip, waterClip, screamClip, crackClip;
     static readonly List<string> missing = new List<string>();
+    static GameObject xrRigInstance;   // gezet door TrySpawnXRRig, gebruikt voor SenseGlove-koppeling
 
     static bool VrMode => EditorPrefs.GetBool("DragonCave_VRMode", false);   // zelfde schakelaar als v1
 
@@ -73,6 +74,7 @@ public static class DragonCaveV2Builder
         BuildSpotlight(dragon);
         AddDust(cave);
         BuildPlayerAndPost(path);
+        BuildSenseGloveTorch(path);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         AssetDatabase.SaveAssets();
@@ -80,7 +82,7 @@ public static class DragonCaveV2Builder
         if (SceneView.lastActiveSceneView != null) SceneView.lastActiveSceneView.FrameSelected();
 
         if (missing.Count > 0) Debug.LogWarning("[Dragon Cave v2] Niet gevonden (overgeslagen): " + string.Join(", ", missing));
-        Debug.Log("[Dragon Cave v2] Klaar (" + (VrMode ? "VR" : "Desktop") + "): " + ScenePath + ". Pak het ei en de draak wordt wakker.");
+        Debug.Log("[Dragon Cave v2] Klaar (" + (VrMode ? "VR" : "Desktop") + "): " + ScenePath + ". Pak het ei en de draak wordt wakker. Fakkel staat naast het spawnpunt.");
     }
 
     // ---------------------------------------------------------------- materialen + sfeer
@@ -634,8 +636,18 @@ public static class DragonCaveV2Builder
         vol.sharedProfile = profile;
     }
 
+    // Pakbare fakkel naast het spawnpunt (SenseGlove: pakken = trillen + force feedback).
+    static void BuildSenseGloveTorch(List<Vector3> path)
+    {
+        int si = path.Count - 4;
+        Quaternion spawnRot = Quaternion.LookRotation((path[si - 1] - path[si + 1]).normalized);
+        DragonCaveSGTorch.BuildTorch(path[si], spawnRot, woodMat, flameMat, woodMat, torchClip);
+        DragonCaveSGTorch.AddSenseGloveRig(xrRigInstance);
+    }
+
     static bool TrySpawnXRRig(Vector3 pos, Quaternion rot)
     {
+        xrRigInstance = null;
         foreach (string guid in AssetDatabase.FindAssets("XR Origin t:Prefab"))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -644,6 +656,7 @@ public static class DragonCaveV2Builder
             if (prefab == null) continue;
             var go = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             go.transform.SetPositionAndRotation(pos, rot);
+            xrRigInstance = go;
             foreach (var c in go.GetComponentsInChildren<Camera>(true))
                 c.GetUniversalAdditionalCameraData().renderPostProcessing = true;
             return true;
